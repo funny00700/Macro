@@ -95,7 +95,6 @@ end
 window:ShowTab(logtab)
 updatelog("Voting")
 
--- แก้ไขให้ใช้ env. ตัวแปรทั้งหมดเพื่อป้องกันสคริปต์พังเพราะหาตัวแปรไม่เจอ
 function waitTime(time, wave)
     while env.waveinfo < wave and not env.isroundover do
         taskwait(0.05)
@@ -117,17 +116,28 @@ function api:Loop(func)
 end
 
 function api:Start()
-    bytenet.Timescale.SetTimescale.send(2)
+    if env.macro_started then return end
+    env.macro_started = true
+
+    -- ลองส่งความเร็วระดับ x3 ไปก่อน
+    bytenet.Timescale.SetTimescale.send(3)
+    
+    -- เผื่อเกมบังคับรับแค่ x2 สำหรับคนไม่มีพาส ส่งสำรองไปหลังจากนั้นนิดหน่อย
+    task.delay(0.5, function()
+        local current = mapinfo:GetAttribute("Timescale") or mapinfo:GetAttribute("TimeScale")
+        if not current or current < 3 then
+            bytenet.Timescale.SetTimescale.send(2)
+        end
+    end)
 
     env.waveinfo = mapinfo:GetAttribute("Wave") or 1
     env.timer = 0
     
     mapinfo:GetAttributeChangedSignal("Wave"):Connect(function()
-        env.waveinfo = mapinfo:GetAttribute("Wave")
+        env.waveinfo = mapinfo:GetAttribute("Wave") or 1
     end)
 
     roundresultui:GetPropertyChangedSignal("Visible"):Connect(function()
-        -- แก้ไขตัวแปรให้ตรงกับ Global Environment
         env.isroundover = roundresultui.Visible
     end)
     
@@ -135,8 +145,12 @@ function api:Start()
         
     task.spawn(function()
         env.lasttime = ostime()
-        while env.lasttime do
-            env.timer = (ostime() - env.lasttime) * 2
+        while true do
+            if env.lasttime and not env.isroundover then
+                -- ดึงค่าความเร็วจากเกมมาคูณเวลา ถ้าคนไม่มี x3 หรือเกมไม่มีค่านี้ จะตกกลับไปเป็น x2 อัตโนมัติ
+                local current_speed = mapinfo:GetAttribute("Timescale") or mapinfo:GetAttribute("TimeScale") or 2
+                env.timer = (ostime() - env.lasttime) * current_speed
+            end
             taskwait(0.25)
         end
     end)
@@ -180,7 +194,6 @@ function api:Upgrade(tower: number, time: number, wave: number)
     if waitTime(time, wave) then
         updatelog(`Upgraded Tower {tower}`)
         
-        -- แก้ให้เรียก env.firsttower 
         local realindex = env.firsttower + (tower - 1)
         towers.UpgradeTower.invoke(realindex)
     end
@@ -205,25 +218,24 @@ function api:Sell(tower: number, time: number, wave: number)
 end
 
 function api:PlayAgain()
-    -- รอจนจบเกม
+    -- รอจนกว่าเกมจะจบ (หน้าต่างสถิติเด้ง)
     while not env.isroundover do taskwait(0.1) end
     
-    -- รีเซ็ตค่า UID ใหม่ เพราะเวลาเริ่มเกมใหม่ ตัวเกมจะนับ 1 ใหม่
-    env.firsttower = 1
-    env.totalplacedtowers = 0
+    updatelog("Match ended. Waiting for rewards...")
+    taskwait(5) -- รอ 5 วินาทีเพื่อให้มั่นใจว่าเซิร์ฟเวอร์แจกของรางวัลเสร็จแล้ว
     
-    env.lasttime = ostime()
-    env.timer = 0
-    env.waveinfo = 1
+    updatelog("Teleporting back to Lobby...")
     
-    taskwait(1)
+    -- ทำการวาร์ปกลับไปที่แมพ Lobby เพื่อให้รันรอบใหม่สดๆ
+    local TeleportService = game:GetService("TeleportService")
+    local LocalPlayer = game:GetService("Players").LocalPlayer
     
-    bytenet.RoundResult.VoteForRestart.send(true)
-    updatelog("Voted for restart")
+    pcall(function()
+        TeleportService:Teleport(98936097545088, LocalPlayer)
+    end)
     
-    -- รอจนกว่าหน้า UI ท้ายเกมจะปิดลง เพื่อยืนยันว่าเกมรอบใหม่รันแล้วจริงๆ
-    while env.isroundover do taskwait(0.1) end
-    taskwait(2)
+    -- ป้องกันไม่ให้รันคำสั่งอื่นต่อระหว่างรอหน้าจอโหลด
+    while true do taskwait(1) end
 end
 
 return api
