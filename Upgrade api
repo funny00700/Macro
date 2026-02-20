@@ -99,15 +99,16 @@ window:ShowTab(logtab)
 updatelog("Voting")
 
 function waitTime(time, wave)
-	while waveinfo < wave and not isroundover do
+	-- แก้ไขให้ใช้ env. ตัวแปรทั้งหมด
+	while env.waveinfo < wave and not env.isroundover do
 		taskwait(0.05)
 	end
 	   
-    	while timer < time and not isroundover do
+    	while env.timer < time and not env.isroundover do
         	taskwait(0.05)
     	end
     	
-    	return not isroundover
+    	return not env.isroundover
 end
 
 function api:Loop(func)
@@ -123,23 +124,22 @@ function api:Start()
 
 	env.waveinfo = mapinfo:GetAttribute("Wave") or 1
 	env.timer = 0
+	env.isroundover = false
 	
 	mapinfo:GetAttributeChangedSignal("Wave"):Connect(function()
 		env.waveinfo = mapinfo:GetAttribute("Wave")
 	end)
 
 	roundresultui:GetPropertyChangedSignal("Visible"):Connect(function()
-		isroundover = roundresultui.Visible
+		env.isroundover = roundresultui.Visible
 	end)
 	
 	updatelog("Game Started")
 		
 	task.spawn(function()
-		lasttime = ostime()
+		env.lasttime = ostime()
 		while env.lasttime do
 			env.timer = (ostime() - env.lasttime) * 2
-			--print(string.format("Timer: %.1f | Wave: %d", timer, waveinfo))
-			
 			taskwait(0.25)
 		end
 	end)
@@ -163,7 +163,7 @@ function api:Ready(time: number, wave: number)
 end
 
 function api:Skip(time: number, wave: number)
-	if waitTime(time, wave) then up পণ্ডিতlog(`Skipping Wave {wave}`) replicatedstorage:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("\148\001")) end
+	if waitTime(time, wave) then updatelog(`Skipping Wave {wave}`) replicatedstorage:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("\148\001")) end
 end
 
 function api:AutoSkip(enable: number, time: number, wave: number)
@@ -183,7 +183,8 @@ function api:Upgrade(tower: number, time: number, wave: number)
 	if waitTime(time, wave) then
 		updatelog(`Upgraded Tower {tower}`)
 		
-		local realindex = firsttower + (tower - 1)
+		-- แก้ไขให้ใช้ env.firsttower
+		local realindex = env.firsttower + (tower - 1)
 		towers.UpgradeTower.invoke(realindex)
 	end
 end
@@ -192,7 +193,8 @@ function api:SetTarget(tower: number, target: string, time: number, wave: number
 	if waitTime(time, wave) then
 		updatelog(`Changed Tower {tower} Target to {target} `)
 	
-		local realindex = firsttower + (tower - 1)
+		-- แก้ไขให้ใช้ env.firsttower
+		local realindex = env.firsttower + (tower - 1)
 		towers.SetTargetMode.send({["UID"] = (realindex), ["TargetMode"] = target})
 	end
 end
@@ -201,20 +203,28 @@ function api:Sell(tower: number, time: number, wave: number)
 	if waitTime(time, wave) then
 		updatelog(`Sold Tower {tower}`) 
 		
-		local realindex = firsttower + (tower - 1)
+		-- แก้ไขให้ใช้ env.firsttower
+		local realindex = env.firsttower + (tower - 1)
 		towers.SellTower.invoke(realindex)
 	end
 end
 
 function api:PlayAgain()
-	while not isroundover do taskwait(0.1) end
+	while not env.isroundover do taskwait(0.1) end
 	
-	taskwait(3)
-	updatelog("Teleporting to lobby...")
-	game:GetService("TeleportService"):Teleport(98936097545088, game:GetService("Players").LocalPlayer)
+	-- แก้ไข: เมื่อเริ่มตาใหม่ ให้รีเซ็ตค่ากลับไปเป็น 1 แทนที่จะบวกของเก่า
+	env.firsttower = 1
+	env.totalplacedtowers = 0
 	
-	-- ฟรีซสคริปต์ไว้ตรงนี้เพื่อรอวาร์ป ป้องกันไม่ให้มันวนกลับไปรันคำสั่งโหวตใหม่
-	while true do taskwait(1) end
+	env.lasttime = ostime()
+	env.timer = 0
+	env.waveinfo = 1
+	env.isroundover = false
+	
+	taskwait(1)
+	
+	bytenet.RoundResult.VoteForRestart.send(true)
+	updatelog("Voted for restart")
 end
 
 return api
