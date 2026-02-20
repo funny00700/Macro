@@ -163,7 +163,7 @@ function api:Ready(time: number, wave: number)
 end
 
 function api:Skip(time: number, wave: number)
-	if waitTime(time, wave) then updatelog(`Skipping Wave {wave}`) replicatedstorage:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("\148\001")) end
+	if waitTime(time, wave) then up পণ্ডিতlog(`Skipping Wave {wave}`) replicatedstorage:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("\148\001")) end
 end
 
 function api:AutoSkip(enable: number, time: number, wave: number)
@@ -209,11 +209,12 @@ end
 function api:PlayAgain()
 	while not isroundover do taskwait(0.1) end
 	
-	taskwait(3) -- รอ 3 วินาทีรับของรางวัล
+	taskwait(3)
 	updatelog("Teleporting to lobby...")
-	
-	-- วาร์ปกลับล็อบบี้
 	game:GetService("TeleportService"):Teleport(98936097545088, game:GetService("Players").LocalPlayer)
+	
+	-- ฟรีซสคริปต์ไว้ตรงนี้เพื่อรอวาร์ป ป้องกันไม่ให้มันวนกลับไปรันคำสั่งโหวตใหม่
+	while true do taskwait(1) end
 end
 
 return api
