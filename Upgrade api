@@ -26,7 +26,7 @@ if game.PlaceId ~= 124069847780670 then return api end
 local towers = bytenet.Towers
 local mapinfo = replicatedstorage.RoundInfo
 
-local roundresultui = game:GetService("Players").LocalPlayer.PlayerGui:WaitForChild("GameUI"):WaitForChild("RoundResult")
+local roundresultui = game:GetService("Players").LocalPlayer.PlayerGui.GameUI.RoundResult
 
 local ostime = os.time
 local taskwait = task.wait
@@ -98,17 +98,16 @@ end
 window:ShowTab(logtab)
 updatelog("Voting")
 
--- แก้ไขใส่ env. ให้ครบ ไม่งั้นสคริปต์จะค้าง
 function waitTime(time, wave)
-	while env.waveinfo < wave and not env.isroundover do
+	while waveinfo < wave and not isroundover do
 		taskwait(0.05)
 	end
 	   
-    while env.timer < time and not env.isroundover do
-        taskwait(0.05)
-    end
+    	while timer < time and not isroundover do
+        	taskwait(0.05)
+    	end
     	
-    return not env.isroundover
+    	return not isroundover
 end
 
 function api:Loop(func)
@@ -130,15 +129,17 @@ function api:Start()
 	end)
 
 	roundresultui:GetPropertyChangedSignal("Visible"):Connect(function()
-		env.isroundover = roundresultui.Visible -- แก้ไขใส่ env. ตรงนี้ด้วย
+		isroundover = roundresultui.Visible
 	end)
 	
 	updatelog("Game Started")
 		
 	task.spawn(function()
-		env.lasttime = ostime()
+		lasttime = ostime()
 		while env.lasttime do
 			env.timer = (ostime() - env.lasttime) * 2
+			--print(string.format("Timer: %.1f | Wave: %d", timer, waveinfo))
+			
 			taskwait(0.25)
 		end
 	end)
@@ -162,7 +163,7 @@ function api:Ready(time: number, wave: number)
 end
 
 function api:Skip(time: number, wave: number)
-	if waitTime(time, wave) then up পণ্ডিতlog(`Skipping Wave {wave}`) replicatedstorage:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("\148\001")) end
+	if waitTime(time, wave) then updatelog(`Skipping Wave {wave}`) replicatedstorage:WaitForChild("ByteNetReliable"):FireServer(buffer.fromstring("\148\001")) end
 end
 
 function api:AutoSkip(enable: number, time: number, wave: number)
@@ -182,7 +183,7 @@ function api:Upgrade(tower: number, time: number, wave: number)
 	if waitTime(time, wave) then
 		updatelog(`Upgraded Tower {tower}`)
 		
-		local realindex = env.firsttower + (tower - 1)
+		local realindex = firsttower + (tower - 1)
 		towers.UpgradeTower.invoke(realindex)
 	end
 end
@@ -191,7 +192,7 @@ function api:SetTarget(tower: number, target: string, time: number, wave: number
 	if waitTime(time, wave) then
 		updatelog(`Changed Tower {tower} Target to {target} `)
 	
-		local realindex = env.firsttower + (tower - 1)
+		local realindex = firsttower + (tower - 1)
 		towers.SetTargetMode.send({["UID"] = (realindex), ["TargetMode"] = target})
 	end
 end
@@ -200,34 +201,19 @@ function api:Sell(tower: number, time: number, wave: number)
 	if waitTime(time, wave) then
 		updatelog(`Sold Tower {tower}`) 
 		
-		local realindex = env.firsttower + (tower - 1)
+		local realindex = firsttower + (tower - 1)
 		towers.SellTower.invoke(realindex)
 	end
 end
 
 function api:PlayAgain()
-	-- ตรวจสอบให้แน่ใจว่าเกมจบแล้วจริงๆ (หน้า UI โชว์ขึ้นมา)
-	while not env.isroundover do taskwait(0.5) end
+	while not isroundover do taskwait(0.1) end
 	
-	updatelog("Game Over! Returning to lobby...")
-	taskwait(4) -- รอรับรางวัล 4 วินาที
+	taskwait(3) -- รอ 3 วินาทีรับของรางวัล
+	updatelog("Teleporting to lobby...")
 	
-	local TeleportService = game:GetService("TeleportService")
-	local LocalPlayer = game:GetService("Players").LocalPlayer
-	
-	-- ใช้ pcall วนลูปวาร์ปให้ชัวร์ๆ ถ้าเซิร์ฟ Roblox เอ๋อ มันจะย้ำคำสั่งให้จนกว่าจะกลับไป Lobby
-	task.spawn(function()
-		while true do
-			updatelog("Teleporting...")
-			pcall(function()
-				TeleportService:Teleport(98936097545088, LocalPlayer)
-			end)
-			taskwait(3)
-		end
-	end)
-	
-	-- ฟรีซสคริปต์ไว้ตรงนี้ระหว่างรอหน้าจอวาร์ป จะได้ไม่มีคำสั่งแทรก
-	while true do taskwait(1) end
+	-- วาร์ปกลับล็อบบี้
+	game:GetService("TeleportService"):Teleport(98936097545088, game:GetService("Players").LocalPlayer)
 end
 
 return api
